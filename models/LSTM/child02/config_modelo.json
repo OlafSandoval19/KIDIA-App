@@ -1,0 +1,63 @@
+{
+  "modelo_nombre": "lstm_blocks_6h_child02",
+  "descripcion": "LSTM multistep para predecir bloques de 6 horas y encadenar 24 horas",
+  "child_id": "child02",
+  "feature_cols": [
+    "glucosa (mg/dL)",
+    "ingesta_total_CHO (mg)",
+    "insulina_bolo (U)",
+    "hour_sin",
+    "hour_cos"
+  ],
+  "input_window": 360,
+  "output_window": 360,
+  "n_blocks_for_24h": 4,
+  "final_horizon_if_chained": 1440,
+  "input_shape": [
+    360,
+    5
+  ],
+  "output_shape": [
+    360
+  ],
+  "columnas_base": {
+    "glucosa": "glucosa (mg/dL)",
+    "ingesta": "ingesta_total_CHO (mg)",
+    "insulina": "insulina_bolo (U)",
+    "protocolo": "protocolo"
+  },
+  "metricas_test_globales_6h": {
+    "MAE": 15.736023461026644,
+    "RMSE": 20.80973355481141,
+    "R2": 0.7811425683517179
+  },
+  "metricas_por_horizonte_en_bloque": [
+    {
+      "horizonte_min": 60,
+      "MAE": 10.96506509497922,
+      "RMSE": 15.020401801885855,
+      "R2": 0.883968138188196
+    },
+    {
+      "horizonte_min": 180,
+      "MAE": 13.614964746961206,
+      "RMSE": 18.177683790348944,
+      "R2": 0.8306266413111296
+    },
+    {
+      "horizonte_min": 360,
+      "MAE": 15.736023461026644,
+      "RMSE": 20.80973355481141,
+      "R2": 0.7811425683517179
+    }
+  ],
+  "archivos": {
+    "model_file": "model.keras",
+    "scaler_x_file": "scaler_x.pkl",
+    "scaler_y_file": "scaler_y.pkl",
+    "features_file": "features.pkl",
+    "protocol_report_file": "protocol_report.csv",
+    "metricas_test_file": "metricas_test.csv",
+    "predicciones_test_file": "predicciones_test.csv"
+  }
+}
