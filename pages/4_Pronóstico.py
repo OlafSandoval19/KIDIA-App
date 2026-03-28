@@ -618,9 +618,20 @@ if selected_model_type == "automatico":
     selected_model_type_effective = auto_info["selected_model_type"]
 
     if model_available and selected_model_type_effective == "xgboost":
-        xgb_model, xgb_feature_cols, xgb_config, xgb_model_dir = auto_info["artifacts"]
-    elif model_available and selected_model_type_effective == "lstm":
-        lstm_model, lstm_feature_cols, lstm_config, scaler_x, scaler_y, lstm_model_dir = auto_info["artifacts"]
+    xgb_auto = auto_info["artifacts"]
+    xgb_model = xgb_auto["model"]
+    xgb_feature_cols = xgb_auto["feature_cols"]
+    xgb_config = xgb_auto["config"]
+    xgb_model_dir = xgb_auto["model_dir"]
+
+elif model_available and selected_model_type_effective == "lstm":
+    lstm_auto = auto_info["artifacts"]
+    lstm_model = lstm_auto["model"]
+    lstm_feature_cols = lstm_auto["feature_cols"]
+    lstm_config = lstm_auto["config"]
+    scaler_x = lstm_auto["scaler_x"]
+    scaler_y = lstm_auto["scaler_y"]
+    lstm_model_dir = lstm_auto["model_dir"]
 
 elif selected_model_type == "xgboost":
     selected_model_type_effective = "xgboost"
@@ -652,8 +663,13 @@ elif selected_model_type == "lstm":
 if xgb_artifacts is not None:
     xgb_model, xgb_feature_cols, xgb_config, xgb_model_dir = xgb_artifacts
 
-if lstm_artifacts not in [None, "tensorflow_missing"]:
-    lstm_model, lstm_feature_cols, lstm_config, scaler_x, scaler_y, lstm_model_dir = lstm_artifacts
+if isinstance(lstm_artifacts, dict) and lstm_artifacts.get("ok", False):
+    lstm_model = lstm_artifacts.get("model")
+    lstm_feature_cols = lstm_artifacts.get("feature_cols")
+    lstm_config = lstm_artifacts.get("config")
+    scaler_x = lstm_artifacts.get("scaler_x")
+    scaler_y = lstm_artifacts.get("scaler_y")
+    lstm_model_dir = lstm_artifacts.get("model_dir")
 
 with c_model_2:
     st.metric("Estado", "Listo" if model_available else "Sin modelo")
