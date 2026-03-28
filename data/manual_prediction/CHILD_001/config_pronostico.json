@@ -1,0 +1,56 @@
+{
+  "patient_id": "CHILD_001",
+  "patient_name": "Niño 1",
+  "patient_folder": "data\\uploads\\patient_CHILD_001",
+  "reference_date": "2026-03-28",
+  "start_time": "00:00",
+  "horizon_minutes": 1440,
+  "current_glucose_mgdl": 120.0,
+  "events_csv_path": "data\\manual_prediction\\CHILD_001\\eventos_manuales.csv",
+  "events": [
+    {
+      "tipo": "Evento prandial",
+      "fecha": "2026-03-28",
+      "hora": "08:00",
+      "datetime": "2026-03-28 08:00:00",
+      "cho_valor": 0.0,
+      "cho_unidad": "g",
+      "cho_mg": 0.0,
+      "bolus_u": 35.0,
+      "nota": ""
+    },
+    {
+      "tipo": "Evento prandial",
+      "fecha": "2026-03-28",
+      "hora": "13:00",
+      "datetime": "2026-03-28 13:00:00",
+      "cho_valor": 0.0,
+      "cho_unidad": "g",
+      "cho_mg": 0.0,
+      "bolus_u": 70.0,
+      "nota": ""
+    },
+    {
+      "tipo": "Evento prandial",
+      "fecha": "2026-03-28",
+      "hora": "17:45",
+      "datetime": "2026-03-28 17:45:00",
+      "cho_valor": 0.0,
+      "cho_unidad": "g",
+      "cho_mg": 0.0,
+      "bolus_u": 70.0,
+      "nota": ""
+    },
+    {
+      "tipo": "Evento prandial",
+      "fecha": "2026-03-28",
+      "hora": "23:30",
+      "datetime": "2026-03-28 23:30:00",
+      "cho_valor": 0.0,
+      "cho_unidad": "g",
+      "cho_mg": 0.0,
+      "bolus_u": 70.0,
+      "nota": ""
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+﻿tipo,fecha,hora,datetime,cho_valor,cho_unidad,cho_mg,bolus_u,nota
+Evento prandial,2026-03-28,08:00,2026-03-28 08:00:00,45.0,g,45000.0,4.0,
+Evento prandial,2026-03-28,12:00,2026-03-28 12:00:00,78.0,g,78000.0,7.0,
+Evento prandial,2026-03-28,15:30,2026-03-28 15:30:00,135.0,g,135000.0,25.0,
+Evento prandial,2026-03-28,20:00,2026-03-28 20:00:00,10.0,g,10000.0,0.0,

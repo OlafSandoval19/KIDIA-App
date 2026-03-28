@@ -3,6 +3,4 @@ venv/
 __pycache__/
 *.pyc
 .streamlit/secrets.toml
-data/
-models/
 models_store/
