@@ -422,7 +422,6 @@ def extract_lstm_score(config: dict):
     }
     return score, metrics_for_conf
 
-
 def choose_best_model(child_id: str):
     xgb = load_xgb_artifacts(child_id)
     lstm = load_lstm_artifacts(child_id)
@@ -432,42 +431,46 @@ def choose_best_model(child_id: str):
     if xgb is not None:
         xgb_model, xgb_feature_cols, xgb_config, xgb_model_dir = xgb
         xgb_score, xgb_metrics = extract_xgb_score(xgb_config)
+
         candidates.append({
             "name": "xgboost",
             "score": xgb_score,
             "confidence_pct": infer_confidence_from_metrics(xgb_metrics),
-            "artifacts": xgb,
+            "artifacts": {
+                "model": xgb_model,
+                "feature_cols": xgb_feature_cols,
+                "config": xgb_config,
+                "model_dir": xgb_model_dir,
+            },
             "status_text": f"Modelo XGBoost cargado desde: {xgb_model_dir}"
         })
 
-    if lstm == "tensorflow_missing":
-        pass
-    elif lstm is not None:
-        lstm_model, lstm_feature_cols, lstm_config, scaler_x, scaler_y, lstm_model_dir = lstm
-        lstm_score, lstm_metrics = extract_lstm_score(lstm_config)
+    if isinstance(lstm, dict) and lstm.get("ok", False):
+        lstm_score, lstm_metrics = extract_lstm_score(lstm.get("config", {}))
+
         candidates.append({
             "name": "lstm",
             "score": lstm_score,
             "confidence_pct": infer_confidence_from_metrics(lstm_metrics),
             "artifacts": lstm,
-            "status_text": f"Modelo LSTM cargado desde: {lstm_model_dir}"
+            "status_text": f"Modelo LSTM cargado desde: {lstm.get('model_dir')}"
         })
 
     if not candidates:
-        if lstm == "tensorflow_missing":
-            return {
-                "selected_model_type": "demo",
-                "model_available": False,
-                "confidence_pct": 0.0,
-                "confidence_text": "Baja",
-                "model_status_text": "TensorFlow no está instalado en este entorno para cargar LSTM."
-            }
+        lstm_error = ""
+        if isinstance(lstm, dict) and not lstm.get("ok", True):
+            lstm_error = lstm.get("error", "")
+
+        msg = f"No se encontraron modelos válidos para {child_id}."
+        if lstm_error:
+            msg += f" {lstm_error}"
+
         return {
             "selected_model_type": "demo",
             "model_available": False,
             "confidence_pct": 0.0,
             "confidence_text": "Baja",
-            "model_status_text": f"No se encontraron modelos válidos para {child_id}."
+            "model_status_text": msg
         }
 
     best = min(candidates, key=lambda x: x["score"])
@@ -481,6 +484,7 @@ def choose_best_model(child_id: str):
         "artifacts": best["artifacts"],
         "selection_reason": f"Selección automática por menor RMSE histórico ({best['score']:.3f})."
     }
+
 
 # =========================
 # 4) TÍTULO
