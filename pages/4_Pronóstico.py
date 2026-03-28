@@ -374,8 +374,6 @@ def load_lstm_artifacts(child_id: str):
             "model_dir": base,
             "error": f"No se pudo cargar el modelo LSTM para {child_id}: {type(e).__name__}: {e}"
         }
-
-
 # =========================
 # 4) TÍTULO
 # =========================
@@ -470,9 +468,7 @@ if not df_events.empty and "datetime" in df_events.columns:
 
 manual_events_mode = not df_events.empty
 
-# =========================
-# 7) MODELOS DISPONIBLES
-# =========================
+
 # =========================
 # 7) MODELOS DISPONIBLES
 # =========================
@@ -491,7 +487,6 @@ with c_model_1:
 xgb_artifacts = load_xgb_artifacts(child_id)
 lstm_artifacts = load_lstm_artifacts(child_id)
 
-# Variables por defecto
 model_available = False
 confidence_pct = 0.0
 confidence_text = "Baja"
@@ -499,13 +494,11 @@ model_status_text = ""
 selection_reason = ""
 selected_model_type_effective = "demo"
 
-# Variables XGBoost
 xgb_model = None
 xgb_feature_cols = None
 xgb_config = None
 xgb_model_dir = None
 
-# Variables LSTM
 lstm_model = None
 lstm_feature_cols = None
 lstm_config = None
@@ -514,11 +507,9 @@ scaler_y = None
 lstm_model_dir = None
 lstm_error_text = ""
 
-# Cargar XGBoost si existe
 if xgb_artifacts is not None:
     xgb_model, xgb_feature_cols, xgb_config, xgb_model_dir = xgb_artifacts
 
-# Cargar LSTM si existe y fue válido
 if isinstance(lstm_artifacts, dict):
     if lstm_artifacts.get("ok", False):
         lstm_model = lstm_artifacts.get("model")
