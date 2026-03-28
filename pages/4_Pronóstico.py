@@ -341,7 +341,7 @@ def load_lstm_artifacts(child_id):
     features_path = base / "features.pkl"
     config_path = base / "config_modelo.json"
 
-    model = load_model(model_path, compile=False)
+    model = load_model(model_path, compile=False, safe_mode=False)
 
     scaler_x = joblib.load(scaler_x_path)
     scaler_y = joblib.load(scaler_y_path)
