@@ -348,7 +348,7 @@ def load_lstm_artifacts(child_folder_name: str):
     except Exception:
         return "tensorflow_missing"
 
-    model = load_model(model_path)
+    model = load_model(model_path, compile=False)
 
     with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
