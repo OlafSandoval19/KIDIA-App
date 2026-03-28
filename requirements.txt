@@ -7,4 +7,4 @@ openpyxl
 joblib
 scikit-learn
 xgboost
-tensorflow
+tensorflow==2.21.0
