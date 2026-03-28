@@ -330,34 +330,32 @@ def load_xgb_artifacts(child_folder_name: str):
     return model, feature_cols, config, model_dir
 
 
-@st.cache_resource(show_spinner=False)
-def load_lstm_artifacts(child_folder_name: str):
-    model_dir = LSTM_ROOT / child_folder_name
-    model_path = model_dir / "model.keras"
-    config_path = model_dir / "config_modelo.json"
-    features_path = model_dir / "features.pkl"
-    scaler_x_path = model_dir / "scaler_x.pkl"
-    scaler_y_path = model_dir / "scaler_y.pkl"
+@st.cache_resource
+def load_lstm_artifacts(child_id):
+    base = Path("models") / "LSTM" / child_id
 
-    required = [model_path, config_path, features_path, scaler_x_path, scaler_y_path]
-    if not all(p.exists() for p in required):
-        return None
-
-    try:
-        from tensorflow.keras.models import load_model
-    except Exception:
-        return "tensorflow_missing"
+    model_path = base / "model.keras"
+    scaler_x_path = base / "scaler_x.pkl"
+    scaler_y_path = base / "scaler_y.pkl"
+    features_path = base / "features.pkl"
+    config_path = base / "config_modelo.json"
 
     model = load_model(model_path, compile=False)
+
+    scaler_x = joblib.load(scaler_x_path)
+    scaler_y = joblib.load(scaler_y_path)
+    features = joblib.load(features_path)
 
     with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
 
-    feature_cols = joblib.load(features_path)
-    scaler_x = joblib.load(scaler_x_path)
-    scaler_y = joblib.load(scaler_y_path)
-
-    return model, feature_cols, config, scaler_x, scaler_y, model_dir
+    return {
+        "model": model,
+        "scaler_x": scaler_x,
+        "scaler_y": scaler_y,
+        "features": features,
+        "config": config,
+    }
 
 
 def extract_xgb_score(config: dict):
