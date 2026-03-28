@@ -336,6 +336,30 @@ def load_features_any(path: Path):
                     return value
     return None
 
+def remove_keys_recursive(obj, keys_to_remove):
+    if isinstance(obj, dict):
+        return {
+            k: remove_keys_recursive(v, keys_to_remove)
+            for k, v in obj.items()
+            if k not in keys_to_remove
+        }
+    if isinstance(obj, list):
+        return [remove_keys_recursive(x, keys_to_remove) for x in obj]
+    return obj
+
+
+def sanitize_keras_architecture_json(model_json_text: str) -> str:
+    data = json.loads(model_json_text)
+
+    # Campos que pueden aparecer en modelos guardados con versiones más nuevas
+    # y romper la deserialización en entornos más viejos.
+    keys_to_remove = {
+        "quantization_config",
+    }
+
+    data = remove_keys_recursive(data, keys_to_remove)
+    return json.dumps(data)
+
 # =========================
 # 3) CARGA DE MODELOS
 # =========================
@@ -432,9 +456,11 @@ def load_lstm_artifacts(child_folder_name: str):
 
     try:
         with open(arch_path, "r", encoding="utf-8") as f:
-            model_json = f.read()
+            raw_model_json = f.read()
 
-        model = model_from_json(model_json)
+        clean_model_json = sanitize_keras_architecture_json(raw_model_json)
+
+        model = model_from_json(clean_model_json)
         model.load_weights(str(weights_path))
 
         config = load_json_file(config_path, default={})
