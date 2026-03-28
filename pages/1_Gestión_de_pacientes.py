@@ -123,6 +123,9 @@ except Exception:
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+UPLOADS_DIR = DATA_DIR / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
 PATIENTS_CSV = DATA_DIR / "patients.csv"
 REQUIRED_COLS = ["ID", "Nombre"]
 
@@ -137,20 +140,72 @@ def _ensure_patients_df(df: pd.DataFrame) -> pd.DataFrame:
         if c not in df.columns:
             df[c] = ""
 
-    df["ID"] = df["ID"].astype(str)
-    df["Nombre"] = df["Nombre"].astype(str)
+    df["ID"] = df["ID"].astype(str).str.strip()
+    df["Nombre"] = df["Nombre"].astype(str).str.strip()
+
+    df = df[df["ID"] != ""].copy()
+    df = df.drop_duplicates(subset=["ID"], keep="first").reset_index(drop=True)
 
     return df[REQUIRED_COLS].copy()
 
 
+def build_patients_from_uploads() -> pd.DataFrame:
+    pacientes = []
+
+    if not UPLOADS_DIR.exists():
+        return pd.DataFrame(columns=REQUIRED_COLS)
+
+    for p in sorted(UPLOADS_DIR.iterdir()):
+        if not p.is_dir():
+            continue
+
+        nombre_carpeta = p.name.strip()
+
+        if not nombre_carpeta.startswith("patient_"):
+            continue
+
+        patient_id = nombre_carpeta.replace("patient_", "", 1).strip()
+
+        # Ejemplo: CHILD_001 -> Niño 1
+        nombre = patient_id
+        if patient_id.startswith("CHILD_"):
+            try:
+                numero = int(patient_id.split("_")[-1])
+                nombre = f"Niño {numero}"
+            except Exception:
+                nombre = patient_id
+
+        pacientes.append({
+            "ID": patient_id,
+            "Nombre": nombre
+        })
+
+    return _ensure_patients_df(pd.DataFrame(pacientes))
+
+
 def load_patients_from_disk() -> pd.DataFrame:
+    # 1) Intentar desde CSV
     if PATIENTS_CSV.exists():
         try:
             df = pd.read_csv(PATIENTS_CSV, dtype=str)
-            return _ensure_patients_df(df)
+            df = _ensure_patients_df(df)
+
+            # Si el CSV sí trae pacientes, usarlo
+            if not df.empty:
+                return df
         except Exception:
-            return pd.DataFrame(columns=REQUIRED_COLS)
-    return pd.DataFrame(columns=REQUIRED_COLS)
+            pass
+
+    # 2) Si no hay CSV o está vacío, reconstruir desde uploads
+    df_uploads = build_patients_from_uploads()
+
+    if not df_uploads.empty:
+        try:
+            df_uploads.to_csv(PATIENTS_CSV, index=False)
+        except Exception:
+            pass
+
+    return df_uploads
 
 
 def save_patients_to_disk(df: pd.DataFrame) -> None:
@@ -169,9 +224,14 @@ def _clear_active_patient():
 # =========================
 st.session_state.patients = _ensure_patients_df(st.session_state.get("patients"))
 
-if st.session_state.patients.empty and PATIENTS_CSV.exists():
+if st.session_state.patients.empty:
     st.session_state.patients = load_patients_from_disk()
 
+# Si sigue vacío, intentar una vez más directo desde uploads
+if st.session_state.patients.empty:
+    st.session_state.patients = build_patients_from_uploads()
+
+# Guardar padrón ya normalizado
 save_patients_to_disk(st.session_state.patients)
 
 patients_df = _ensure_patients_df(st.session_state.get("patients"))
