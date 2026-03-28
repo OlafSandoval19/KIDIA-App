@@ -119,7 +119,7 @@ with st.sidebar:
         st.session_state.confirm_logout = False
 
     if not st.session_state.confirm_logout:
-        if st.button("Cerrar sesión", use_container_width=True):
+        if st.button("Cerrar sesión", width="stretch"):
             st.session_state.confirm_logout = True
             st.rerun()
     else:
@@ -127,13 +127,13 @@ with st.sidebar:
 
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("Sí, salir", use_container_width=True):
+            if st.button("Sí, salir", width="stretch"):
                 st.session_state.confirm_logout = False
                 logout()
                 st.switch_page("app.py")
 
         with c2:
-            if st.button("Cancelar", use_container_width=True):
+            if st.button("Cancelar", width="stretch"):
                 st.session_state.confirm_logout = False
                 st.rerun()
 
@@ -305,6 +305,37 @@ def safe_float(v, default=np.inf):
     except Exception:
         return default
 
+
+def first_existing_path(paths):
+    for p in paths:
+        if p.exists():
+            return p
+    return None
+
+
+def load_json_file(path: Path, default=None):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def load_features_any(path: Path):
+    if path.suffix.lower() == ".pkl":
+        return joblib.load(path)
+
+    if path.suffix.lower() == ".json":
+        data = load_json_file(path, default=None)
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for key in ["feature_cols", "features", "columns"]:
+                value = data.get(key)
+                if isinstance(value, list):
+                    return value
+    return None
+
 # =========================
 # 3) CARGA DE MODELOS
 # =========================
@@ -333,18 +364,60 @@ def load_xgb_artifacts(child_folder_name: str):
 @st.cache_resource(show_spinner=False)
 def load_lstm_artifacts(child_folder_name: str):
     model_dir = LSTM_ROOT / child_folder_name
-    model_path = model_dir / "model_clean.h5"
-    config_path = model_dir / "config_modelo.json"
-    features_path = model_dir / "features.pkl"
+
+    arch_path = first_existing_path([
+        model_dir / "model_architecture.json",
+        model_dir / "architecture.json",
+    ])
+
+    weights_path = first_existing_path([
+        model_dir / "model_clean.weights.h5",
+        model_dir / "model.weights.h5",
+        model_dir / "weights.h5",
+    ])
+
+    config_path = first_existing_path([
+        model_dir / "config_modelo.json",
+        model_dir / "config.json",
+        model_dir / "metadata.json",
+    ])
+
+    features_path = first_existing_path([
+        model_dir / "features.pkl",
+        model_dir / "features.json",
+    ])
+
     scaler_x_path = model_dir / "scaler_x.pkl"
     scaler_y_path = model_dir / "scaler_y.pkl"
 
-    required = [model_path, config_path, features_path, scaler_x_path, scaler_y_path]
-    if not all(p.exists() for p in required):
-        return None
+    missing = []
+    if arch_path is None:
+        missing.append("model_architecture.json")
+    if weights_path is None:
+        missing.append("model_clean.weights.h5")
+    if config_path is None:
+        missing.append("config_modelo.json/config.json/metadata.json")
+    if features_path is None:
+        missing.append("features.pkl/features.json")
+    if not scaler_x_path.exists():
+        missing.append("scaler_x.pkl")
+    if not scaler_y_path.exists():
+        missing.append("scaler_y.pkl")
+
+    if missing:
+        return {
+            "ok": False,
+            "model": None,
+            "feature_cols": None,
+            "config": {},
+            "scaler_x": None,
+            "scaler_y": None,
+            "model_dir": model_dir,
+            "error": f"Faltan artefactos LSTM en {model_dir}: {', '.join(missing)}"
+        }
 
     try:
-        from tensorflow.keras.models import load_model
+        from tensorflow.keras.models import model_from_json
     except Exception as e:
         return {
             "ok": False,
@@ -358,14 +431,31 @@ def load_lstm_artifacts(child_folder_name: str):
         }
 
     try:
-        model = load_model(model_path, compile=False)
+        with open(arch_path, "r", encoding="utf-8") as f:
+            model_json = f.read()
 
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
+        model = model_from_json(model_json)
+        model.load_weights(str(weights_path))
 
-        feature_cols = joblib.load(features_path)
+        config = load_json_file(config_path, default={})
+        feature_cols = load_features_any(features_path)
         scaler_x = joblib.load(scaler_x_path)
         scaler_y = joblib.load(scaler_y_path)
+
+        if not isinstance(feature_cols, list) or len(feature_cols) == 0:
+            return {
+                "ok": False,
+                "model": None,
+                "feature_cols": None,
+                "config": config if isinstance(config, dict) else {},
+                "scaler_x": None,
+                "scaler_y": None,
+                "model_dir": model_dir,
+                "error": f"No se pudieron leer correctamente las features del LSTM en {features_path}"
+            }
+
+        if not isinstance(config, dict):
+            config = {}
 
         return {
             "ok": True,
@@ -755,7 +845,7 @@ else:
     if "datetime" in df_show.columns:
         df_show["datetime"] = pd.to_datetime(df_show["datetime"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M")
     cols_to_show = [c for c in ["hora", "cho_valor", "cho_unidad", "bolus_u", "nota", "datetime"] if c in df_show.columns]
-    st.dataframe(df_show[cols_to_show], use_container_width=True)
+    st.dataframe(df_show[cols_to_show], width="stretch")
 
 st.divider()
 
@@ -1464,7 +1554,7 @@ fig.update_layout(
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
 )
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # =========================
 # 14) RESULTADOS EXPORTABLES
@@ -1492,7 +1582,7 @@ forecast_export = pd.DataFrame({
 })
 
 with st.expander("Ver tabla del pronóstico"):
-    st.dataframe(forecast_export, use_container_width=True)
+    st.dataframe(forecast_export, width="stretch")
 
 csv_buffer = io.StringIO()
 forecast_export.to_csv(csv_buffer, index=False)
@@ -1503,7 +1593,7 @@ st.download_button(
     data=csv_bytes,
     file_name=f"forecast_{pid}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
     mime="text/csv",
-    use_container_width=True
+    width="stretch"
 )
 
 # =========================
@@ -1513,5 +1603,5 @@ st.markdown("---")
 b1 = st.columns(1)
 
 with b1[0]:
-    if st.button("🔄 Recalcular pronóstico", use_container_width=True):
+    if st.button("🔄 Recalcular pronóstico", width="stretch"):
         st.rerun()
