@@ -311,7 +311,7 @@ def safe_float(v, default=np.inf):
 @st.cache_resource(show_spinner=False)
 def load_xgb_artifacts(child_folder_name: str):
     model_dir = XGB_ROOT / child_folder_name
-    model_path = model_dir / "model_clean.h5"
+    model_path = model_dir / "model.pkl"
     features_path = model_dir / "features.pkl"
     config_path = model_dir / "config.pkl"
 
