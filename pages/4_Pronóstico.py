@@ -357,9 +357,9 @@ def load_lstm_artifacts(child_folder_name: str):
             "error": f"TensorFlow/Keras no disponible: {type(e).__name__}: {e}"
         }
         
-st.write("LSTM model_dir:", model_dir)
-st.write("LSTM model_path:", model_path)
-st.write("Existe model_clean.h5:", model_path.exists())
+          st.write("LSTM model_dir:", model_dir)
+          st.write("LSTM model_path:", model_path)
+          st.write("Existe model_clean.h5:", model_path.exists())
 
     try:
         model = load_model(model_path, compile=False)
