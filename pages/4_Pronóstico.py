@@ -331,9 +331,9 @@ def load_xgb_artifacts(child_folder_name: str):
     return model, feature_cols, config, model_dir
 
 
-@st.cache_resource
-def load_lstm_artifacts(child_id):
-    base = Path("models") / "LSTM" / child_id
+@st.cache_resource(show_spinner=False)
+def load_lstm_artifacts(child_id: str):
+    base = LSTM_ROOT / child_id
 
     model_path = base / "model.keras"
     scaler_x_path = base / "scaler_x.pkl"
@@ -341,22 +341,40 @@ def load_lstm_artifacts(child_id):
     features_path = base / "features.pkl"
     config_path = base / "config_modelo.json"
 
-    model = load_model(model_path, compile=False, safe_mode=False)
+    if not (model_path.exists() and scaler_x_path.exists() and scaler_y_path.exists() and features_path.exists() and config_path.exists()):
+        return None
 
-    scaler_x = joblib.load(scaler_x_path)
-    scaler_y = joblib.load(scaler_y_path)
-    features = joblib.load(features_path)
+    try:
+        model = load_model(model_path, compile=False, safe_mode=False)
+        scaler_x = joblib.load(scaler_x_path)
+        scaler_y = joblib.load(scaler_y_path)
+        features = joblib.load(features_path)
 
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
 
-    return {
-        "model": model,
-        "scaler_x": scaler_x,
-        "scaler_y": scaler_y,
-        "features": features,
-        "config": config,
-    }
+        return {
+            "ok": True,
+            "model": model,
+            "feature_cols": features,
+            "config": config,
+            "scaler_x": scaler_x,
+            "scaler_y": scaler_y,
+            "model_dir": base,
+            "error": ""
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "model": None,
+            "feature_cols": None,
+            "config": {},
+            "scaler_x": None,
+            "scaler_y": None,
+            "model_dir": base,
+            "error": f"No se pudo cargar el modelo LSTM para {child_id}: {type(e).__name__}: {e}"
+        }
 
 
 def extract_xgb_score(config: dict):
