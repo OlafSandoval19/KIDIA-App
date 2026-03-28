@@ -8,7 +8,6 @@ import io
 import joblib
 import json
 import pickle
-from tensorflow.keras.models import load_model
 
 from kidia.state import init_state
 from kidia.auth import logout
@@ -330,36 +329,52 @@ def load_xgb_artifacts(child_folder_name: str):
 
     return model, feature_cols, config, model_dir
 
+
 @st.cache_resource(show_spinner=False)
-def load_lstm_artifacts(child_id: str):
-    base = LSTM_ROOT / child_id
+def load_lstm_artifacts(child_folder_name: str):
+    model_dir = LSTM_ROOT / child_folder_name
+    model_path = model_dir / "model.keras"
+    config_path = model_dir / "config_modelo.json"
+    features_path = model_dir / "features.pkl"
+    scaler_x_path = model_dir / "scaler_x.pkl"
+    scaler_y_path = model_dir / "scaler_y.pkl"
 
-    model_path = base / "model.keras"
-    scaler_x_path = base / "scaler_x.pkl"
-    scaler_y_path = base / "scaler_y.pkl"
-    features_path = base / "features.pkl"
-    config_path = base / "config_modelo.json"
-
-    if not (model_path.exists() and scaler_x_path.exists() and scaler_y_path.exists() and features_path.exists() and config_path.exists()):
+    required = [model_path, config_path, features_path, scaler_x_path, scaler_y_path]
+    if not all(p.exists() for p in required):
         return None
 
     try:
+        from tensorflow.keras.models import load_model
+    except Exception as e:
+        return {
+            "ok": False,
+            "model": None,
+            "feature_cols": None,
+            "config": {},
+            "scaler_x": None,
+            "scaler_y": None,
+            "model_dir": model_dir,
+            "error": f"TensorFlow/Keras no disponible: {type(e).__name__}: {e}"
+        }
+
+    try:
         model = load_model(model_path, compile=False, safe_mode=False)
-        scaler_x = joblib.load(scaler_x_path)
-        scaler_y = joblib.load(scaler_y_path)
-        features = joblib.load(features_path)
 
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
 
+        feature_cols = joblib.load(features_path)
+        scaler_x = joblib.load(scaler_x_path)
+        scaler_y = joblib.load(scaler_y_path)
+
         return {
             "ok": True,
             "model": model,
-            "feature_cols": features,
+            "feature_cols": feature_cols,
             "config": config,
             "scaler_x": scaler_x,
             "scaler_y": scaler_y,
-            "model_dir": base,
+            "model_dir": model_dir,
             "error": ""
         }
 
@@ -371,9 +386,118 @@ def load_lstm_artifacts(child_id: str):
             "config": {},
             "scaler_x": None,
             "scaler_y": None,
-            "model_dir": base,
-            "error": f"No se pudo cargar el modelo LSTM para {child_id}: {type(e).__name__}: {e}"
+            "model_dir": model_dir,
+            "error": f"No se pudo cargar el modelo LSTM para {child_folder_name}: {type(e).__name__}: {e}"
         }
+
+
+def extract_xgb_score(config: dict):
+    if not isinstance(config, dict):
+        return np.inf, {}
+
+    rec_list = config.get("metricas_recursivas", [])
+    rec_360 = None
+    rec_1440 = None
+
+    if isinstance(rec_list, list):
+        for item in rec_list:
+            h = int(item.get("horizonte_min", -1))
+            if h == 360:
+                rec_360 = item
+            elif h == 1440:
+                rec_1440 = item
+
+    score = np.inf
+    metrics_for_conf = {"metricas_t1": config.get("metricas_t1", {}), "recursive_1440": rec_1440}
+
+    if isinstance(rec_360, dict) and rec_360.get("RMSE") is not None:
+        score = safe_float(rec_360.get("RMSE"), np.inf)
+    elif isinstance(rec_1440, dict) and rec_1440.get("RMSE") is not None:
+        score = safe_float(rec_1440.get("RMSE"), np.inf)
+    elif isinstance(config.get("metricas_t1"), dict):
+        score = safe_float(config["metricas_t1"].get("RMSE"), np.inf)
+
+    return score, metrics_for_conf
+
+
+def extract_lstm_score(config: dict):
+    if not isinstance(config, dict):
+        return np.inf, {}
+
+    global_6h = config.get("metricas_test_globales_6h", {})
+    score = np.inf
+
+    if isinstance(global_6h, dict):
+        score = safe_float(global_6h.get("RMSE"), np.inf)
+
+    metrics_for_conf = {
+        "metricas_test_globales_6h": global_6h,
+        "recursive_1440": None
+    }
+    return score, metrics_for_conf
+
+
+def choose_best_model(child_id: str):
+    xgb = load_xgb_artifacts(child_id)
+    lstm = load_lstm_artifacts(child_id)
+
+    candidates = []
+
+    if xgb is not None:
+        xgb_model, xgb_feature_cols, xgb_config, xgb_model_dir = xgb
+        xgb_score, xgb_metrics = extract_xgb_score(xgb_config)
+        candidates.append({
+            "name": "xgboost",
+            "score": xgb_score,
+            "confidence_pct": infer_confidence_from_metrics(xgb_metrics),
+            "artifacts": {
+                "model": xgb_model,
+                "feature_cols": xgb_feature_cols,
+                "config": xgb_config,
+                "model_dir": xgb_model_dir,
+            },
+            "status_text": f"Modelo XGBoost cargado desde: {xgb_model_dir}"
+        })
+
+    if isinstance(lstm, dict) and lstm.get("ok", False):
+        lstm_score, lstm_metrics = extract_lstm_score(lstm.get("config", {}))
+        candidates.append({
+            "name": "lstm",
+            "score": lstm_score,
+            "confidence_pct": infer_confidence_from_metrics(lstm_metrics),
+            "artifacts": lstm,
+            "status_text": f"Modelo LSTM cargado desde: {lstm.get('model_dir')}"
+        })
+
+    if not candidates:
+        lstm_error = ""
+        if isinstance(lstm, dict) and not lstm.get("ok", True):
+            lstm_error = lstm.get("error", "")
+
+        msg = f"No se encontraron modelos válidos para {child_id}."
+        if lstm_error:
+            msg += f" {lstm_error}"
+
+        return {
+            "selected_model_type": "demo",
+            "model_available": False,
+            "confidence_pct": 0.0,
+            "confidence_text": "Baja",
+            "model_status_text": msg
+        }
+
+    best = min(candidates, key=lambda x: x["score"])
+
+    return {
+        "selected_model_type": best["name"],
+        "model_available": True,
+        "confidence_pct": best["confidence_pct"],
+        "confidence_text": confidence_label(best["confidence_pct"]),
+        "model_status_text": best["status_text"],
+        "artifacts": best["artifacts"],
+        "selection_reason": f"Selección automática por menor RMSE histórico ({best['score']:.3f})."
+    }
+
 # =========================
 # 4) TÍTULO
 # =========================
@@ -437,6 +561,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
 # =========================
 # 6) CONFIGURACIÓN MANUAL
 # =========================
@@ -467,7 +592,6 @@ if not df_events.empty and "datetime" in df_events.columns:
     df_events = df_events.sort_values("datetime").reset_index(drop=True)
 
 manual_events_mode = not df_events.empty
-
 
 # =========================
 # 7) MODELOS DISPONIBLES
@@ -507,7 +631,10 @@ scaler_y = None
 lstm_model_dir = None
 lstm_error_text = ""
 
-if xgb_artifacts is not None:
+xgb_ready = xgb_artifacts is not None
+lstm_ready = isinstance(lstm_artifacts, dict) and lstm_artifacts.get("ok", False)
+
+if xgb_ready:
     xgb_model, xgb_feature_cols, xgb_config, xgb_model_dir = xgb_artifacts
 
 if isinstance(lstm_artifacts, dict):
@@ -548,8 +675,7 @@ if selected_model_type == "automatico":
 
 elif selected_model_type == "xgboost":
     selected_model_type_effective = "xgboost"
-
-    if xgb_model is not None:
+    if xgb_ready:
         model_available = True
         _, metrics_xgb = extract_xgb_score(xgb_config)
         confidence_pct = infer_confidence_from_metrics(metrics_xgb)
@@ -560,8 +686,7 @@ elif selected_model_type == "xgboost":
 
 elif selected_model_type == "lstm":
     selected_model_type_effective = "lstm"
-
-    if lstm_model is not None:
+    if lstm_ready:
         model_available = True
         _, metrics_lstm = extract_lstm_score(lstm_config)
         confidence_pct = infer_confidence_from_metrics(metrics_lstm)
@@ -582,7 +707,6 @@ if model_available:
         st.info(selection_reason)
 else:
     st.warning(model_status_text)
-
 
 # =========================
 # 8) RESUMEN SUPERIOR
@@ -1094,11 +1218,12 @@ used_events_df = pd.DataFrame()
 
 confidence_xgb = 0.0
 confidence_lstm = 0.0
-if xgb_artifacts is not None:
+
+if xgb_ready and xgb_config is not None:
     _, metrics_xgb = extract_xgb_score(xgb_config)
     confidence_xgb = infer_confidence_from_metrics(metrics_xgb)
 
-if lstm_artifacts not in [None, "tensorflow_missing"]:
+if lstm_ready and lstm_config is not None:
     _, metrics_lstm = extract_lstm_score(lstm_config)
     confidence_lstm = infer_confidence_from_metrics(metrics_lstm)
 
@@ -1107,8 +1232,8 @@ with st.spinner("Generando pronóstico..."):
         manual_events_mode
         and MANUAL_COMPARE_BOTH
         and selected_model_type == "automatico"
-        and xgb_artifacts is not None
-        and lstm_artifacts not in [None, "tensorflow_missing"]
+        and xgb_ready
+        and lstm_ready
     )
 
     if run_manual_ensemble:
@@ -1165,7 +1290,7 @@ with st.spinner("Generando pronóstico..."):
         confidence_pct = max(confidence_xgb, confidence_lstm, confidence_pct)
         confidence_text = confidence_label(confidence_pct)
 
-    elif xgb_artifacts is not None and (manual_events_mode or selected_model_type_effective == "xgboost"):
+    elif xgb_ready and (manual_events_mode or selected_model_type_effective == "xgboost"):
         forecast_raw, used_events_df = simulate_xgboost_1440(
             model=xgb_model,
             feature_cols=xgb_feature_cols,
@@ -1190,7 +1315,7 @@ with st.spinner("Generando pronóstico..."):
         confidence_pct = confidence_xgb if confidence_xgb > 0 else confidence_pct
         confidence_text = confidence_label(confidence_pct)
 
-    elif lstm_artifacts not in [None, "tensorflow_missing"] and selected_model_type_effective == "lstm":
+    elif lstm_ready and selected_model_type_effective == "lstm":
         forecast_raw, used_events_df = simulate_lstm_24h(
             model=lstm_model,
             feature_cols=lstm_feature_cols,
@@ -1346,14 +1471,23 @@ st.plotly_chart(fig, use_container_width=True)
 # =========================
 st.subheader("Resultados exportables")
 
+if model_used_type == "xgboost":
+    modelo_export = "XGBoost"
+elif model_used_type == "lstm":
+    modelo_export = "LSTM"
+elif model_used_type == "manual_ensemble":
+    modelo_export = "El Mejor (XGBoost + LSTM)"
+elif selected_model_type == "automatico" and selected_model_type_effective == "xgboost":
+    modelo_export = "El Mejor (XGBoost)"
+elif selected_model_type == "automatico" and selected_model_type_effective == "lstm":
+    modelo_export = "El Mejor (LSTM)"
+else:
+    modelo_export = "Demo / Sin modelo disponible"
+
 forecast_export = pd.DataFrame({
     "datetime": pd.to_datetime(forecast_df["datetime_pred"]).dt.strftime("%Y-%m-%d %H:%M"),
     "prediccion_glucosa_mgdl": forecast_df["glucose_pred"].round(3),
-    "modelo_usado": (
-        "XGBoost" if selected_model_type == "xgboost"
-        else "LSTM" if selected_model_type == "lstm"
-        else f"El Mejor ({'XGBoost' if selected_model_type_effective == 'xgboost' else 'LSTM'})"
-    ),
+    "modelo_usado": modelo_export,
     "patient_id": pid
 })
 
