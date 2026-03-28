@@ -8,6 +8,7 @@ import io
 import joblib
 import json
 import pickle
+from tensorflow.keras.models import load_model
 
 from kidia.state import init_state
 from kidia.auth import logout
