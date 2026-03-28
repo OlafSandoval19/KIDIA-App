@@ -333,7 +333,7 @@ def load_xgb_artifacts(child_folder_name: str):
 @st.cache_resource(show_spinner=False)
 def load_lstm_artifacts(child_folder_name: str):
     model_dir = LSTM_ROOT / child_folder_name
-    model_path = model_dir / "model.keras"
+    model_path = model_dir / "model.h5"
     config_path = model_dir / "config_modelo.json"
     features_path = model_dir / "features.pkl"
     scaler_x_path = model_dir / "scaler_x.pkl"
@@ -358,7 +358,7 @@ def load_lstm_artifacts(child_folder_name: str):
         }
 
     try:
-        model = load_model(model_path, compile=False, safe_mode=False)
+        model = load_model(model_path, compile=False)
 
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
