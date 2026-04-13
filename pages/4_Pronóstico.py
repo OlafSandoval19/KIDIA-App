@@ -1587,12 +1587,19 @@ st.plotly_chart(fig, width="stretch")
 # =========================
 st.subheader("Resultados exportables")
 
+# Evaluamos basándonos en el tipo de modelo usado o el efectivo si está en automático
 if model_used_type == "xgboost":
     modelo_export = "XGBoost"
 elif model_used_type == "lstm":
     modelo_export = "LSTM"
 elif model_used_type == "manual_ensemble":
-    modelo_export = "El Mejor (XGBoost + LSTM)"
+    # CORRECCIÓN: Mostramos el modelo que mejor se adaptó a la dinámica del niño
+    if selected_model_type_effective == "xgboost":
+        modelo_export = "El Mejor (XGBoost)"
+    elif selected_model_type_effective == "lstm":
+        modelo_export = "El Mejor (LSTM)"
+    else:
+         modelo_export = "Automático (Indeterminado)"
 elif selected_model_type == "automatico" and selected_model_type_effective == "xgboost":
     modelo_export = "El Mejor (XGBoost)"
 elif selected_model_type == "automatico" and selected_model_type_effective == "lstm":
